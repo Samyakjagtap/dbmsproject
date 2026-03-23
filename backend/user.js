@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db     = require('./db')
-const auth   = require('./auth')
+const authRoute = require('./auth');
+const auth = authRoute.authMiddleware;
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
@@ -42,7 +43,7 @@ const upload = multer({
 router.get('/categories', auth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      'SELECT * FROM categories WHERE user_id = ? ORDER BY name',
+      'SELECT id, name, type, icon, color FROM categories WHERE user_id = ? ORDER BY type, name',
       [req.userId]
     );
     res.json(rows);
@@ -53,14 +54,17 @@ router.get('/categories', auth, async (req, res) => {
 
 // POST /api/categories
 router.post('/categories', auth, async (req, res) => {
-  const { name, icon = 'tag', color = '#6366f1' } = req.body;
+  const { name, type = 'expense', icon = 'tag', color = '#6366f1' } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
+  if (!['income', 'expense'].includes(type)) {
+    return res.status(400).json({ error: 'type must be income or expense' });
+  }
   try {
     const [result] = await db.query(
-      'INSERT INTO categories (user_id, name, icon, color) VALUES (?, ?, ?, ?)',
-      [req.userId, name, icon, color]
+      'INSERT INTO categories (user_id, name, type, icon, color) VALUES (?, ?, ?, ?, ?)',
+      [req.userId, name, type, icon, color]
     );
-    res.status(201).json({ id: result.insertId, name, icon, color });
+    res.status(201).json({ id: result.insertId, name, type, icon, color });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

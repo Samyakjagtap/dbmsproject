@@ -1,152 +1,166 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { authApi } from '../services/api';
 
 export interface Transaction {
   id: string;
   title: string;
   amount: number;
   category: string;
+  category_id?: number;
   date: string;
   paymentMethod: string;
   notes: string;
   type: 'income' | 'expense';
 }
 
+interface BackendTransaction {
+  id: number;
+  type: 'income' | 'expense';
+  amount: number;
+  description: string | null;
+  date: string;
+  category_id: number | null;
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
+}
+
 interface TransactionContextType {
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  deleteTransaction: (id: string) => void;
-  updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
+  loading: boolean;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
   getBalance: () => number;
   getTotalIncome: () => number;
   getTotalExpense: () => number;
-  refreshTransactions: () => void;
+  refreshTransactions: () => Promise<void>;
   importTransactions: (importedTransactions: Transaction[]) => void;
   exportTransactions: () => Transaction[];
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'expense_tracker_transactions';
+const API_BASE = 'http://localhost:5000/api';
 
-// Initial mock data
-const initialTransactions: Transaction[] = [
-  { 
-    id: '1', 
-    title: 'Grocery Shopping', 
-    amount: 2500, 
-    category: 'Food & Dining', 
-    date: '2026-03-20', 
-    type: 'expense',
-    paymentMethod: 'UPI',
-    notes: ''
-  },
-  { 
-    id: '2', 
-    title: 'Monthly Salary', 
-    amount: 50000, 
-    category: 'Salary', 
-    date: '2026-03-19', 
-    type: 'income',
-    paymentMethod: 'Net Banking',
-    notes: ''
-  },
-  { 
-    id: '3', 
-    title: 'Coffee Shop', 
-    amount: 350, 
-    category: 'Food & Dining', 
-    date: '2026-03-18', 
-    type: 'expense',
-    paymentMethod: 'Cash',
-    notes: ''
-  },
-  { 
-    id: '4', 
-    title: 'Fuel', 
-    amount: 1200, 
-    category: 'Transport', 
-    date: '2026-03-17', 
-    type: 'expense',
-    paymentMethod: 'Credit Card',
-    notes: ''
-  },
-  { 
-    id: '5', 
-    title: 'Rent Payment', 
-    amount: 15000, 
-    category: 'Bills & Utilities', 
-    date: '2026-03-15', 
-    type: 'expense',
-    paymentMethod: 'Net Banking',
-    notes: ''
-  },
-  { 
-    id: '6', 
-    title: 'Freelance Project', 
-    amount: 25000, 
-    category: 'Freelance', 
-    date: '2026-03-10', 
-    type: 'income',
-    paymentMethod: 'UPI',
-    notes: 'Website design project'
-  },
-  { 
-    id: '7', 
-    title: 'Online Shopping', 
-    amount: 4500, 
-    category: 'Shopping', 
-    date: '2026-03-12', 
-    type: 'expense',
-    paymentMethod: 'Credit Card',
-    notes: ''
-  },
-  { 
-    id: '8', 
-    title: 'Investment Returns', 
-    amount: 10000, 
-    category: 'Investments', 
-    date: '2026-03-08', 
-    type: 'income',
-    paymentMethod: 'Net Banking',
-    notes: 'Mutual fund dividend'
-  },
-];
+function getToken(): string | null {
+  return localStorage.getItem('et_token');
+}
 
-export function TransactionProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    // Try to load from localStorage
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return initialTransactions;
-      }
-    }
-    return initialTransactions;
+async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
   });
 
-  // Save to localStorage whenever transactions change
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Request failed');
+  }
+  return data as T;
+}
+
+function mapBackendToFrontend(tx: BackendTransaction): Transaction {
+  return {
+    id: tx.id.toString(),
+    title: tx.description || 'Transaction',
+    amount: Number(tx.amount),
+    category: tx.category_name || 'Other',
+    category_id: tx.category_id ?? undefined,
+    date: tx.date.split('T')[0],
+    paymentMethod: 'Other',
+    notes: '',
+    type: tx.type,
+  };
+}
+
+export function TransactionProvider({ children }: { children: ReactNode }) {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!authApi.isAuthenticated()) {
+      setTransactions([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiRequest<BackendTransaction[]>('/transactions');
+      setTransactions(data.map(mapBackendToFrontend));
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
-  }, [transactions]);
+    fetchTransactions();
+  }, [fetchTransactions]);
 
-  const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    };
-    setTransactions(prev => [newTransaction, ...prev]);
+  const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    try {
+      const payload = {
+        type: transaction.type,
+        amount: transaction.amount,
+        description: transaction.title,
+        date: transaction.date,
+        category_id: transaction.category_id || null,
+      };
+
+      await apiRequest('/transactions', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      await fetchTransactions();
+    } catch (err) {
+      console.error('Failed to add transaction:', err);
+      throw err;
+    }
   };
 
-  const deleteTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
+  const deleteTransaction = async (id: string) => {
+    try {
+      await apiRequest(`/transactions/${id}`, {
+        method: 'DELETE',
+      });
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error('Failed to delete transaction:', err);
+      throw err;
+    }
   };
 
-  const updateTransaction = (id: string, updates: Partial<Transaction>) => {
-    setTransactions(prev => 
-      prev.map(t => t.id === id ? { ...t, ...updates } : t)
-    );
+  const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
+    try {
+      const existing = transactions.find(t => t.id === id);
+      if (!existing) return;
+
+      const payload = {
+        type: updates.type ?? existing.type,
+        amount: updates.amount ?? existing.amount,
+        description: updates.title ?? existing.title,
+        date: updates.date ?? existing.date,
+        category_id: updates.category_id ?? existing.category_id ?? null,
+      };
+
+      await apiRequest(`/transactions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+
+      await fetchTransactions();
+    } catch (err) {
+      console.error('Failed to update transaction:', err);
+      throw err;
+    }
   };
 
   const getTotalIncome = () => {
@@ -165,22 +179,12 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     return getTotalIncome() - getTotalExpense();
   };
 
-  const refreshTransactions = useCallback(() => {
-    // Force re-read from localStorage and update state
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setTransactions([...parsed]);
-      } catch {
-        // Keep current state if parse fails
-      }
-    }
-  }, []);
+  const refreshTransactions = useCallback(async () => {
+    await fetchTransactions();
+  }, [fetchTransactions]);
 
   const importTransactions = useCallback((importedTransactions: Transaction[]) => {
     setTransactions(prev => {
-      // Merge imported transactions, avoiding duplicates by ID
       const existingIds = new Set(prev.map(t => t.id));
       const newTransactions = importedTransactions.filter(t => !existingIds.has(t.id));
       return [...prev, ...newTransactions];
@@ -193,6 +197,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const value: TransactionContextType = {
     transactions,
+    loading,
     addTransaction,
     deleteTransaction,
     updateTransaction,

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db     = require('./db')
-const auth   = require('./auth')
+const authRoute = require('./auth');
+const auth = authRoute.authMiddleware;
 
 // GET /api/transactions  – all transactions for logged-in user
 router.get('/', auth, async (req, res) => {

@@ -5,6 +5,7 @@ import { SoftButton } from '../components/soft-button';
 import { useTheme } from '../contexts/theme-context';
 import { useProfile } from '../contexts/profile-context';
 import { useTransactions, Transaction } from '../contexts/transaction-context';
+import { authApi } from '../services/api';
 import {
   User,
   Mail,
@@ -28,15 +29,21 @@ import { toast } from 'sonner';
 
 export function Profile() {
   const { theme, toggleTheme } = useTheme();
-  const { profileImage, setProfileImage, userName, setUserName } = useProfile();
+  const { profileImage, setProfileImage, userName, userEmail, setUserName, loading: profileLoading } = useProfile();
   const { transactions, getBalance, getTotalIncome, getTotalExpense, importTransactions, exportTransactions } = useTransactions();
-  const [name, setName] = useState(userName);
-  const [email, setEmail] = useState('john.doe@example.com');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 98765 43210');
   const [location, setLocation] = useState('Mumbai, India');
   const [notifications, setNotifications] = useState(true);
   const [lowBalanceAlert, setLowBalanceAlert] = useState(true);
   const [monthlyReport, setMonthlyReport] = useState(true);
+
+  // Sync state with profile data
+  useEffect(() => {
+    if (userName) setName(userName);
+    if (userEmail) setEmail(userEmail);
+  }, [userName, userEmail]);
 
   // Profile image state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,9 +66,18 @@ export function Profile() {
   // Export dropdown state
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-  const handleSaveProfile = () => {
-    setUserName(name);
-    toast.success('Profile updated successfully!');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await setUserName(name);
+      toast.success('Profile updated successfully!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update profile');
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   // Profile image handling
@@ -147,7 +163,9 @@ export function Profile() {
   };
 
   // Change password handling
-  const handleChangePassword = () => {
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handleChangePassword = async () => {
     setPasswordError('');
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -165,13 +183,19 @@ export function Profile() {
       return;
     }
 
-    // In production, this would call the API
-    // authApi.changePassword(currentPassword, newPassword)
-    toast.success('Password changed successfully!');
-    setShowPasswordModal(false);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    setPasswordLoading(true);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      toast.success('Password changed successfully!');
+      setShowPasswordModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Failed to change password');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   // Export functionality
@@ -301,7 +325,14 @@ export function Profile() {
 
   // Get user initials for avatar
   const getInitials = () => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    if (!name || name.trim() === '') return '?';
+    return name
+      .split(' ')
+      .filter(n => n.length > 0)
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -450,8 +481,8 @@ export function Profile() {
               </div>
             </div>
             <div className="mt-6">
-              <SoftButton onClick={handleSaveProfile} variant="primary">
-                Save Changes
+              <SoftButton onClick={handleSaveProfile} variant="primary" disabled={savingProfile}>
+                {savingProfile ? 'Saving...' : 'Save Changes'}
               </SoftButton>
             </div>
           </SoftCard>
@@ -711,8 +742,9 @@ export function Profile() {
                     variant="primary"
                     onClick={handleChangePassword}
                     className="flex-1"
+                    disabled={passwordLoading}
                   >
-                    Update Password
+                    {passwordLoading ? 'Updating...' : 'Update Password'}
                   </SoftButton>
                   <SoftButton
                     variant="ghost"

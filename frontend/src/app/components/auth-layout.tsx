@@ -1,7 +1,13 @@
-import { Outlet } from 'react-router';
+import { Outlet, Navigate } from 'react-router';
 import { Wallet } from 'lucide-react';
+import { authApi } from '../services/api';
 
 export function AuthLayout() {
+  // Redirect to app if already authenticated
+  if (authApi.isAuthenticated()) {
+    return <Navigate to="/app" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">

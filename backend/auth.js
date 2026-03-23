@@ -7,6 +7,7 @@ const db      = require('./db')
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('❌ No token provided');
     return res.status(401).json({ error: 'No token provided' });
   }
 
@@ -14,8 +15,10 @@ const authMiddleware = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.userId;
+    console.log(`✅ Token verified for userId: ${req.userId}`);
     next();
-  } catch {
+  } catch (err) {
+    console.log('❌ Invalid token:', err.message);
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
@@ -39,15 +42,15 @@ router.post('/register', async (req, res) => {
 
     // Create default categories for new user
     await db.query(`
-      INSERT INTO categories (user_id, name, icon, color) VALUES
-        (?, 'Food & Dining',  'utensils',    '#f59e0b'),
-        (?, 'Transport',      'car',         '#3b82f6'),
-        (?, 'Shopping',       'shopping-bag','#8b5cf6'),
-        (?, 'Entertainment',  'film',        '#ec4899'),
-        (?, 'Health',         'heart',       '#10b981'),
-        (?, 'Utilities',      'zap',         '#6366f1'),
-        (?, 'Salary',         'briefcase',   '#22c55e'),
-        (?, 'Freelance',      'laptop',      '#14b8a6')
+      INSERT INTO categories (user_id, name, type, icon, color) VALUES
+        (?, 'Food & Dining',  'expense', 'utensils',    '#f59e0b'),
+        (?, 'Transport',      'expense', 'car',         '#3b82f6'),
+        (?, 'Shopping',       'expense', 'shopping-bag','#8b5cf6'),
+        (?, 'Entertainment',  'expense', 'film',        '#ec4899'),
+        (?, 'Health',         'expense', 'heart',       '#10b981'),
+        (?, 'Utilities',      'expense', 'zap',         '#6366f1'),
+        (?, 'Salary',         'income',  'briefcase',   '#22c55e'),
+        (?, 'Freelance',      'income',  'laptop',      '#14b8a6')
     `, Array(8).fill(userId));
 
     const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -115,3 +118,4 @@ router.post('/change-password', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.authMiddleware = authMiddleware;

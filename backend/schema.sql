@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS categories (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   user_id    INT           NOT NULL,
   name       VARCHAR(100)  NOT NULL,
+  type       ENUM('income', 'expense') NOT NULL DEFAULT 'expense',
   icon       VARCHAR(50)   DEFAULT 'tag',
   color      VARCHAR(20)   DEFAULT '#6366f1',
   created_at TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
@@ -67,15 +68,15 @@ VALUES (1, 'Demo User', 'demo@example.com',
         1000.00);
 
 -- ─── SEED: Default categories ─────────────────────────────────
-INSERT IGNORE INTO categories (id, user_id, name, icon, color) VALUES
-  (1, 1, 'Food & Dining',  'utensils',    '#f59e0b'),
-  (2, 1, 'Transport',      'car',         '#3b82f6'),
-  (3, 1, 'Shopping',       'shopping-bag','#8b5cf6'),
-  (4, 1, 'Entertainment',  'film',        '#ec4899'),
-  (5, 1, 'Health',         'heart',       '#10b981'),
-  (6, 1, 'Utilities',      'zap',         '#6366f1'),
-  (7, 1, 'Salary',         'briefcase',   '#22c55e'),
-  (8, 1, 'Freelance',      'laptop',      '#14b8a6');
+INSERT IGNORE INTO categories (id, user_id, name, type, icon, color) VALUES
+  (1, 1, 'Food & Dining',  'expense', 'utensils',    '#f59e0b'),
+  (2, 1, 'Transport',      'expense', 'car',         '#3b82f6'),
+  (3, 1, 'Shopping',       'expense', 'shopping-bag','#8b5cf6'),
+  (4, 1, 'Entertainment',  'expense', 'film',        '#ec4899'),
+  (5, 1, 'Health',         'expense', 'heart',       '#10b981'),
+  (6, 1, 'Utilities',      'expense', 'zap',         '#6366f1'),
+  (7, 1, 'Salary',         'income',  'briefcase',   '#22c55e'),
+  (8, 1, 'Freelance',      'income',  'laptop',      '#14b8a6');
 
 -- ─── SEED: Sample transactions ────────────────────────────────
 INSERT IGNORE INTO transactions (user_id, category_id, type, amount, description, date) VALUES

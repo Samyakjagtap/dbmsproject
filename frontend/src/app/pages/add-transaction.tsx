@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SoftCard } from '../components/soft-card';
 import { SoftInput } from '../components/soft-input';
 import { SoftButton } from '../components/soft-button';
@@ -7,25 +7,7 @@ import { motion } from 'motion/react';
 import { useTransactions } from '../contexts/transaction-context';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-
-const expenseCategories = [
-  'Food & Dining',
-  'Shopping',
-  'Transport',
-  'Bills & Utilities',
-  'Entertainment',
-  'Healthcare',
-  'Education',
-  'Travel',
-  'Others',
-];
-
-const incomeCategories = [
-  'Freelance',
-  'Salary',
-  'Investments',
-  'Other',
-];
+import { categoriesApi, Category } from '../services/api';
 
 const paymentMethods = [
   'Cash',
@@ -42,81 +24,97 @@ export function AddTransaction() {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState<number | ''>('');
   const [date, setDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
 
-  // Get categories based on transaction type
-  const categories = type === 'income' ? incomeCategories : expenseCategories;
+  // Filter categories based on transaction type
+  const filteredCategories = categories.filter(cat => cat.type === type);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const data = await categoriesApi.getAll();
+        setCategories(data);
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      }
+    }
+    fetchCategories();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
 
     const parsedAmount = parseFloat(amount);
     const currentBalance = getBalance();
+    const selectedCategory = filteredCategories.find(c => c.id === categoryId);
 
-    // Add transaction to context
-    addTransaction({
-      title,
-      amount: parsedAmount,
-      category,
-      date,
-      paymentMethod,
-      notes,
-      type,
-    });
-
-    // Show success notification with custom styling
-    if (type === 'income') {
-      toast.success('Income Added Successfully! 🎉', {
-        description: `₹${parsedAmount.toLocaleString('en-IN')} added to ${category}`,
-        duration: 5000,
-      });
-    } else {
-      toast.success('Expense Added Successfully!', {
-        description: `₹${parsedAmount.toLocaleString('en-IN')} spent on ${category}`,
-        duration: 4000,
+    try {
+      await addTransaction({
+        title,
+        amount: parsedAmount,
+        category: selectedCategory?.name || 'Other',
+        category_id: categoryId || undefined,
+        date,
+        paymentMethod,
+        notes,
+        type,
       });
 
-      // Check for large expense
-      if (parsedAmount > 5000) {
-        setTimeout(() => {
-          toast.warning('Large Expense Alert! 💸', {
-            description: `You spent ₹${parsedAmount.toLocaleString('en-IN')} on ${category}`,
-            duration: 3000,
-          });
-        }, 100);
+      if (type === 'income') {
+        toast.success('Income Added Successfully!', {
+          description: `₹${parsedAmount.toLocaleString('en-IN')} added to ${selectedCategory?.name || 'income'}`,
+          duration: 5000,
+        });
+      } else {
+        toast.success('Expense Added Successfully!', {
+          description: `₹${parsedAmount.toLocaleString('en-IN')} spent on ${selectedCategory?.name || 'expense'}`,
+          duration: 4000,
+        });
+
+        if (parsedAmount > 5000) {
+          setTimeout(() => {
+            toast.warning('Large Expense Alert!', {
+              description: `You spent ₹${parsedAmount.toLocaleString('en-IN')} on ${selectedCategory?.name || 'expense'}`,
+              duration: 3000,
+            });
+          }, 100);
+        }
+
+        const newBalance = currentBalance - parsedAmount;
+        if (newBalance < 5000 && newBalance > 0) {
+          setTimeout(() => {
+            toast.warning('Low Balance Alert!', {
+              description: `Your balance is now ₹${newBalance.toLocaleString('en-IN')}`,
+              duration: 3000,
+            });
+          }, 200);
+        }
       }
 
-      // Check for low balance
-      const newBalance = currentBalance - parsedAmount;
-      if (newBalance < 5000 && newBalance > 0) {
-        setTimeout(() => {
-          toast.warning('Low Balance Alert! 🚨', {
-            description: `Your balance is now ₹${newBalance.toLocaleString('en-IN')}`,
-            duration: 3000,
-          });
-        }, 200);
-      }
+      setTitle('');
+      setAmount('');
+      setCategoryId('');
+      setDate('');
+      setPaymentMethod('');
+      setNotes('');
+
+      navigate('/app');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add transaction');
+    } finally {
+      setLoading(false);
     }
-
-    // Reset form
-    setTitle('');
-    setAmount('');
-    setCategory('');
-    setDate('');
-    setPaymentMethod('');
-    setNotes('');
-
-    // Navigate to dashboard (correct path)
-    navigate('/app');
   };
 
-  // Reset category when type changes
   const handleTypeChange = (newType: 'income' | 'expense') => {
     setType(newType);
-    setCategory(''); // Reset category when switching type
+    setCategoryId('');
   };
 
   return (
@@ -178,15 +176,15 @@ export function AddTransaction() {
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-foreground">Category</label>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : '')}
                 className="rounded-xl px-4 py-3 bg-input-background border-2 border-transparent shadow-[var(--soft-shadow-inset)] focus:border-primary focus:outline-none transition-all duration-200"
                 required
               >
                 <option value="">Select Category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
+                {filteredCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
                   </option>
                 ))}
               </select>
@@ -235,8 +233,9 @@ export function AddTransaction() {
               variant="success"
               icon={Plus}
               className="flex-1"
+              disabled={loading}
             >
-              Add Transaction
+              {loading ? 'Adding...' : 'Add Transaction'}
             </SoftButton>
             <SoftButton
               type="button"
@@ -244,7 +243,7 @@ export function AddTransaction() {
               onClick={() => {
                 setTitle('');
                 setAmount('');
-                setCategory('');
+                setCategoryId('');
                 setDate('');
                 setPaymentMethod('');
                 setNotes('');

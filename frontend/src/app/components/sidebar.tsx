@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router';
-import { 
-  LayoutDashboard, 
-  PlusCircle, 
-  Receipt, 
-  FolderKanban, 
-  User, 
+import {
+  LayoutDashboard,
+  PlusCircle,
+  Receipt,
+  FolderKanban,
+  User,
   LogOut,
   Wallet,
   Menu,
@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router';
 import { useState } from 'react';
+import { authApi } from '../services/api';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/app' },
@@ -28,6 +29,7 @@ export function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
+    authApi.logout();
     navigate('/');
   };
 

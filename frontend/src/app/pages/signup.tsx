@@ -4,6 +4,8 @@ import { Mail, Lock, User as UserIcon } from 'lucide-react';
 import { SoftCard } from '../components/soft-card';
 import { SoftInput } from '../components/soft-input';
 import { SoftButton } from '../components/soft-button';
+import { authApi } from '../services/api';
+import { toast } from 'sonner';
 
 export function Signup() {
   const navigate = useNavigate();
@@ -11,11 +13,32 @@ export function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock signup - navigate to dashboard
-    navigate('/app');
+
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await authApi.register(name, email, password);
+      toast.success('Account created successfully!');
+      navigate('/app');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -92,8 +115,8 @@ export function Signup() {
           </span>
         </label>
 
-        <SoftButton type="submit" variant="primary" className="w-full">
-          Create Account
+        <SoftButton type="submit" variant="primary" className="w-full" disabled={loading}>
+          {loading ? 'Creating Account...' : 'Create Account'}
         </SoftButton>
 
         <div className="text-center text-sm text-muted-foreground">

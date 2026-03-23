@@ -4,16 +4,28 @@ import { Mail, Lock } from 'lucide-react';
 import { SoftCard } from '../components/soft-card';
 import { SoftInput } from '../components/soft-input';
 import { SoftButton } from '../components/soft-button';
+import { authApi } from '../services/api';
+import { toast } from 'sonner';
 
 export function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - navigate to dashboard
-    navigate('/app');
+    setLoading(true);
+
+    try {
+      await authApi.login(email, password);
+      toast.success('Login successful!');
+      navigate('/app');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,8 +72,8 @@ export function Login() {
           </a>
         </div>
 
-        <SoftButton type="submit" variant="primary" className="w-full">
-          Sign In
+        <SoftButton type="submit" variant="primary" className="w-full" disabled={loading}>
+          {loading ? 'Signing In...' : 'Sign In'}
         </SoftButton>
 
         <div className="text-center text-sm text-muted-foreground">

@@ -1,9 +1,15 @@
-import { Outlet } from 'react-router';
+import { Outlet, Navigate } from 'react-router';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Toaster } from 'sonner';
+import { authApi } from '../services/api';
 
 export function Layout() {
+  // Redirect to login if not authenticated
+  if (!authApi.isAuthenticated()) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />

@@ -1,55 +1,97 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { userApi, authApi } from '../services/api';
+
+interface UserProfile {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  balance_limit?: number;
+}
 
 interface ProfileContextType {
+  profile: UserProfile | null;
+  loading: boolean;
   profileImage: string | null;
   setProfileImage: (image: string | null) => void;
   userName: string;
+  userEmail: string;
   setUserName: (name: string) => void;
+  refreshProfile: () => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
-const PROFILE_IMAGE_KEY = 'expense_tracker_profile_image';
-const PROFILE_NAME_KEY = 'expense_tracker_profile_name';
-
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [profileImage, setProfileImageState] = useState<string | null>(() => {
-    const stored = localStorage.getItem(PROFILE_IMAGE_KEY);
-    return stored || null;
-  });
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [profileImage, setProfileImageState] = useState<string | null>(null);
 
-  const [userName, setUserNameState] = useState<string>(() => {
-    const stored = localStorage.getItem(PROFILE_NAME_KEY);
-    return stored || 'John Doe';
-  });
-
-  // Save profile image to localStorage whenever it changes
-  useEffect(() => {
-    if (profileImage) {
-      localStorage.setItem(PROFILE_IMAGE_KEY, profileImage);
-    } else {
-      localStorage.removeItem(PROFILE_IMAGE_KEY);
+  const fetchProfile = useCallback(async () => {
+    if (!authApi.isAuthenticated()) {
+      setProfile(null);
+      setProfileImageState(null);
+      return;
     }
-  }, [profileImage]);
 
-  // Save user name to localStorage whenever it changes
+    setLoading(true);
+    try {
+      const data = await userApi.getProfile();
+      setProfile(data);
+      if (data.avatar_url) {
+        setProfileImageState(`http://localhost:5000${data.avatar_url}`);
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem(PROFILE_NAME_KEY, userName);
-  }, [userName]);
+    fetchProfile();
+  }, [fetchProfile]);
 
-  const setProfileImage = (image: string | null) => {
+  const setProfileImage = async (image: string | null) => {
     setProfileImageState(image);
   };
 
-  const setUserName = (name: string) => {
-    setUserNameState(name);
+  const setUserName = async (name: string) => {
+    if (!profile) return;
+    try {
+      await userApi.updateProfile({ name });
+      setProfile(prev => prev ? { ...prev, name } : null);
+    } catch (err) {
+      console.error('Failed to update name:', err);
+      throw err;
+    }
   };
 
+  const updateProfile = async (data: Partial<UserProfile>) => {
+    try {
+      await userApi.updateProfile(data);
+      setProfile(prev => prev ? { ...prev, ...data } : null);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      throw err;
+    }
+  };
+
+  const refreshProfile = useCallback(async () => {
+    await fetchProfile();
+  }, [fetchProfile]);
+
   const value: ProfileContextType = {
+    profile,
+    loading,
     profileImage,
     setProfileImage,
-    userName,
+    userName: profile?.name || '',
+    userEmail: profile?.email || '',
     setUserName,
+    refreshProfile,
+    updateProfile,
   };
 
   return (
