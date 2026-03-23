@@ -37,14 +37,13 @@ const upload = multer({
   }
 });
 
-// ── Categories ────────────────────────────────────────────────
+// ── Categories (Global - shared by all users) ─────────────────
 
-// GET /api/categories
+// GET /api/categories - returns global categories (user_id = 1)
 router.get('/categories', auth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      'SELECT id, name, type, icon, color FROM categories WHERE user_id = ? ORDER BY type, name',
-      [req.userId]
+      'SELECT id, name, type, icon, color FROM categories WHERE user_id = 1 ORDER BY type, name'
     );
     res.json(rows);
   } catch (err) {
@@ -52,7 +51,7 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
-// POST /api/categories
+// POST /api/categories - adds to global categories
 router.post('/categories', auth, async (req, res) => {
   const { name, type = 'expense', icon = 'tag', color = '#6366f1' } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
@@ -61,8 +60,8 @@ router.post('/categories', auth, async (req, res) => {
   }
   try {
     const [result] = await db.query(
-      'INSERT INTO categories (user_id, name, type, icon, color) VALUES (?, ?, ?, ?, ?)',
-      [req.userId, name, type, icon, color]
+      'INSERT INTO categories (user_id, name, type, icon, color) VALUES (1, ?, ?, ?, ?)',
+      [name, type, icon, color]
     );
     res.status(201).json({ id: result.insertId, name, type, icon, color });
   } catch (err) {
@@ -70,12 +69,12 @@ router.post('/categories', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/categories/:id
+// DELETE /api/categories/:id - deletes from global categories
 router.delete('/categories/:id', auth, async (req, res) => {
   try {
     await db.query(
-      'DELETE FROM categories WHERE id = ? AND user_id = ?',
-      [req.params.id, req.userId]
+      'DELETE FROM categories WHERE id = ? AND user_id = 1',
+      [req.params.id]
     );
     res.json({ message: 'Category deleted' });
   } catch (err) {

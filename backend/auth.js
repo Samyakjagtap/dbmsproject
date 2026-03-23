@@ -40,18 +40,7 @@ router.post('/register', async (req, res) => {
     );
     const userId = result.insertId;
 
-    // Create default categories for new user
-    await db.query(`
-      INSERT INTO categories (user_id, name, type, icon, color) VALUES
-        (?, 'Food & Dining',  'expense', 'utensils',    '#f59e0b'),
-        (?, 'Transport',      'expense', 'car',         '#3b82f6'),
-        (?, 'Shopping',       'expense', 'shopping-bag','#8b5cf6'),
-        (?, 'Entertainment',  'expense', 'film',        '#ec4899'),
-        (?, 'Health',         'expense', 'heart',       '#10b981'),
-        (?, 'Utilities',      'expense', 'zap',         '#6366f1'),
-        (?, 'Salary',         'income',  'briefcase',   '#22c55e'),
-        (?, 'Freelance',      'income',  'laptop',      '#14b8a6')
-    `, Array(8).fill(userId));
+    // Categories are now global (user_id = 1), no per-user categories needed
 
     const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: { id: userId, name, email, balance_limit } });
